@@ -908,8 +908,37 @@ async def start_health_server():
     await web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 8000))).start()
 
 
+# ----------------------- DISK CLEANUP -----------------------
+def sweep_downloads(min_age=0):
+    """Tirtir fayl/gal kasta oo DL_DIR ku jira (marka laga reebo intro cache-ka)
+    ee da'diisu ka weyn tahay min_age ilbiriqsi."""
+    now = time.time()
+    for entry in os.listdir(DL_DIR):
+        p = os.path.join(DL_DIR, entry)
+        if p == INTRO_DIR:
+            continue
+        try:
+            if now - os.path.getmtime(p) < min_age:
+                continue
+            if os.path.isdir(p):
+                shutil.rmtree(p, ignore_errors=True)
+            else:
+                os.remove(p)
+        except Exception:
+            pass
+
+async def sweeper():
+    """10 daqiiqo kasta: haddii hawl socota aysan jirin, tirtir faylasha hadhay (>10 daqiiqo)."""
+    while True:
+        await asyncio.sleep(600)
+        if not jobs:
+            await asyncio.to_thread(sweep_downloads, 600)
+
+
 # ----------------------- START ------------------------------
 async def main():
+    sweep_downloads(0)               # bilowga: nadiifi wax kasta oo hore u hadhay
+    asyncio.create_task(sweeper())   # nadiifin xilliyeed
     await start_health_server()
     if SESSION_STRING:
         await client.start()
